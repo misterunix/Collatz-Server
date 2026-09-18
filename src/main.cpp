@@ -1,0 +1,201 @@
+#include <Arduino.h>
+#include <SPI.h>
+#include <TFT_eSPI.h>
+
+// Install the "XPT2046_Touchscreen" library by Paul Stoffregen to use the Touchscreen - https://github.com/PaulStoffregen/XPT2046_Touchscreen
+// Note: this library doesn't require further configuration
+#include <XPT2046_Touchscreen.h>
+
+TFT_eSPI tft = TFT_eSPI();
+
+// Touchscreen pins
+#define XPT2046_IRQ 36  // T_IRQ
+#define XPT2046_MOSI 32 // T_DIN
+#define XPT2046_MISO 39 // T_OUT
+#define XPT2046_CLK 25  // T_CLK
+#define XPT2046_CS 33   // T_CS
+
+SPIClass touchscreenSPI = SPIClass(VSPI);
+XPT2046_Touchscreen touchscreen(XPT2046_CS, XPT2046_IRQ);
+
+#define RED_LED 4
+#define GREEN_LED 17
+#define BLUE_LED 16
+
+#define LDR 34
+
+#define SCREEN_WIDTH 320
+#define SCREEN_HEIGHT 240
+#define FONT_SIZE 1
+
+#define CHANNEL 3
+
+void printErrorToDisplay(String errorMessage);
+
+// Touchscreen coordinates: (x, y) and pressure (z)
+int touch_x, touch_y, touch_z;
+bool backlightOn = false;
+
+long blPreviousMillis = 0;
+long blInterval = 1000;
+
+// Print Touchscreen info about X, Y and Pressure (Z) on the Serial Monitor
+void printTouchToSerial(int touchX, int touchY, int touchZ)
+{
+  Serial.print("X = ");
+  Serial.print(touchX);
+  Serial.print(" | Y = ");
+  Serial.print(touchY);
+  Serial.print(" | Pressure = ");
+  Serial.print(touchZ);
+  Serial.println();
+}
+
+// Print Touchscreen info about X, Y and Pressure (Z) on the TFT Display
+void printTouchToDisplay(int touchX, int touchY, int touchZ)
+{
+  // Clear TFT screen
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+
+  int centerX = SCREEN_WIDTH / 2;
+  int textY = 80;
+
+  String tempText = "X = " + String(touchX);
+  tft.drawCentreString(tempText, centerX, textY, FONT_SIZE);
+
+  textY += 20;
+  tempText = "Y = " + String(touchY);
+  tft.drawCentreString(tempText, centerX, textY, FONT_SIZE);
+
+  textY += 20;
+  tempText = "Pressure = " + String(touchZ);
+  tft.drawCentreString(tempText, centerX, textY, FONT_SIZE);
+}
+
+void printErrorToDisplay(String errorMessage)
+{
+  // Clear TFT screen
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+
+  int centerX = SCREEN_WIDTH / 2;
+  int textY = 80;
+
+  tft.drawCentreString(errorMessage, centerX, textY, FONT_SIZE);
+
+  // String tempText = "X = " + String(touchX);
+  // tft.drawCentreString(tempText, centerX, textY, FONT_SIZE);
+
+  // textY += 20;
+  // tempText = "Y = " + String(touchY);
+  // tft.drawCentreString(tempText, centerX, textY, FONT_SIZE);
+
+  // textY += 20;
+  // tempText = "Pressure = " + String(touchZ);
+  // tft.drawCentreString(tempText, centerX, textY, FONT_SIZE);
+}
+
+void setup()
+{
+
+  Serial.begin(115200);
+
+  pinMode(RED_LED, OUTPUT);
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(BLUE_LED, OUTPUT);
+
+  digitalWrite(RED_LED, HIGH);
+  digitalWrite(GREEN_LED, HIGH);
+  digitalWrite(BLUE_LED, HIGH);
+
+  pinMode(TFT_BL, OUTPUT);
+  digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
+  backlightOn = true;
+
+  pinMode(LDR, INPUT);
+
+  // Start the SPI for the touchscreen and init the touchscreen
+  touchscreenSPI.begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
+  touchscreen.begin();
+  // Set the Touchscreen rotation in landscape mode
+  // Note: in some displays, the touchscreen might be upside down, so you might need to set the rotation to 3: touchscreen.setRotation(3);
+  touchscreen.setRotation(1);
+
+  // Start the tft display
+  tft.init();
+  // Set the TFT display rotation in landscape mode
+  tft.setRotation(1);
+
+  // Clear the screen before writing to it
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+
+  // Set X and Y coordinates for center of display
+  int centerX = SCREEN_WIDTH / 2;
+  int centerY = SCREEN_HEIGHT / 2;
+
+  tft.drawCentreString("Hello, world!", centerX, 30, FONT_SIZE);
+  tft.drawCentreString("Touch screen to test", centerX, centerY, FONT_SIZE);
+}
+
+void turnBacklightOnOff()
+{
+
+  unsigned long blCurrentMillis = millis();
+  if (blCurrentMillis - blPreviousMillis >= blInterval)
+  {
+    blPreviousMillis = blCurrentMillis;
+    // Place any code here that you want to run at the specified interval
+
+    /*  Read the LDR value and map it to a backlight value for the TFT display
+        The LDR value is inverted, so that when the LDR is in darkness, the backlight is at maximum brightness (255)
+        When the LDR is in bright light, the backlight is at minimum brightness (20)
+    */
+    uint16_t lightlevel = analogRead(LDR);
+    lightlevel = constrain(lightlevel, 0, 600);
+    if (lightlevel > 90)
+    {
+      digitalWrite(TFT_BL, TFT_BACKLIGHT_OFF);
+      backlightOn = false;
+    }
+    else
+    {
+      digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
+      backlightOn = true;
+    }
+  }
+}
+
+void loop()
+{
+
+  turnBacklightOnOff();
+
+  // Checks if Touchscreen was touched, and prints X, Y and Pressure (Z) info on the TFT display and Serial Monitor
+  if (touchscreen.tirqTouched() && touchscreen.touched())
+  {
+    // Get Touchscreen points
+    TS_Point p = touchscreen.getPoint();
+    // Calibrate Touchscreen points with map function to the correct width and height
+    touch_x = map(p.x, 3660, 300, 1, SCREEN_WIDTH);
+    touch_y = map(p.y, 300, 3500, 1, SCREEN_HEIGHT);
+    touch_z = p.z;
+
+    // printTouchToSerial(p.x, p.y, touch_z);
+    printTouchToDisplay(touch_x, touch_y, touch_z);
+
+    delay(100);
+  }
+}
+
+// Calculates a 16-bit checksum by summing all bytes in the buffer.
+uint16_t calculate_16_bit_checksum(const uint8_t *data, size_t length)
+{
+  uint16_t checksum = 0;
+  for (size_t i = 0; i < length; i++)
+  {
+    checksum += data[i];
+  }
+  return checksum;
+}
