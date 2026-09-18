@@ -1,6 +1,14 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <TFT_eSPI.h>
+#include <esp_now.h>
+#include <WiFi.h>
+
+#define MSG_FREE 0
+#define MSG_BUSY 1
+
+// Replace with your receiver's MAC address
+uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 // Install the "XPT2046_Touchscreen" library by Paul Stoffregen to use the Touchscreen - https://github.com/PaulStoffregen/XPT2046_Touchscreen
 // Note: this library doesn't require further configuration
@@ -29,6 +37,23 @@ XPT2046_Touchscreen touchscreen(XPT2046_CS, XPT2046_IRQ);
 #define FONT_SIZE 1
 
 #define CHANNEL 3
+
+typedef struct now_msg
+{
+  uint8_t othermax[6];
+  uint8_t mynode;
+  uint8_t othernode;
+  uint8_t control;
+  uint8_t sequence;
+  unsigned long long startnumber;
+  unsigned long long length;
+  unsigned long long result;
+  uint8_t status;
+  uint16_t checksum;
+} now_msg;
+
+#define MSG_COUNT 64
+now_msg msg[MSG_COUNT];
 
 void printErrorToDisplay(String errorMessage);
 
@@ -137,6 +162,31 @@ void setup()
 
   tft.drawCentreString("Hello, world!", centerX, 30, FONT_SIZE);
   tft.drawCentreString("Touch screen to test", centerX, centerY, FONT_SIZE);
+
+  for (int i = 0; i < MSG_COUNT; i++)
+  {
+    msg[i].status = MSG_FREE;
+    msg[i].sequence = 0;
+    msg[i].checksum = 0;
+    msg[i].length = 10000000ULL;
+    msg[i].result = 0ULL;
+    msg[i].startnumber = 0ULL;
+    msg[i].control = 0;
+    msg[i].othernode = 255;
+    msg[i].mynode = 0; // 0 is Always the server
+  }
+
+  // ESP-NOW requires WiFi to be initialized in station mode first
+  WiFi.mode(WIFI_STA);
+
+  // Initialize ESP-NOW
+  if (esp_now_init() != ESP_OK)
+  {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  Serial.println("ESP-NOW Initialized!");
 }
 
 void turnBacklightOnOff()
