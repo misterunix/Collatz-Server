@@ -7,6 +7,8 @@
 #define MSG_FREE 0
 #define MSG_BUSY 1
 
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
+
 // Replace with your receiver's MAC address
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -186,6 +188,20 @@ void setup()
     return;
   }
 
+  // Register the send callback
+  esp_now_register_send_cb(OnDataSent);
+
+  // Register peer
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = CHANNEL;
+  peerInfo.encrypt = false;
+  if (esp_now_add_peer(&peerInfo) != ESP_OK)
+  {
+    Serial.println("Failed to add peer");
+    return;
+  }
+
   Serial.println("ESP-NOW Initialized!");
 }
 
@@ -248,4 +264,11 @@ uint16_t calculate_16_bit_checksum(const uint8_t *data, size_t length)
     checksum += data[i];
   }
   return checksum;
+}
+
+// Callback when data is sent
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
+{
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
