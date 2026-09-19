@@ -4,6 +4,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
+// 28:05:a5:33:23:fc
 #define MSG_FREE 0
 #define MSG_BUSY 1
 
