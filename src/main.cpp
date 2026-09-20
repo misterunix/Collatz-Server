@@ -47,16 +47,16 @@ XPT2046_Touchscreen touchscreen(XPT2046_CS, XPT2046_IRQ);
 
 typedef struct now_msg
 {
-  uint8_t othermax[6];
-  uint8_t mynode;
-  uint8_t othernode;
-  uint8_t control;
-  uint8_t sequence;
-  unsigned long long startnumber;
-  unsigned long long length;
-  unsigned long long result;
-  uint8_t status;
-  uint16_t checksum;
+  uint8_t othermac[6];            // the mac of a responding device
+  uint8_t senderNode;             // the node ID of the sender
+  uint8_t othernode;              // the node ID of the responding device
+  uint8_t control;                // control flags or commands
+  uint8_t sequence;               // sequence number of the message
+  unsigned long long startnumber; // starting number for the computation
+  unsigned long long length;      // length of the computation range
+  unsigned long long result;      // result of the computation
+  uint8_t status;                 // status of the message (e.g., MSG_FREE or MSG_BUSY)
+  uint16_t checksum;              // 16-bit checksum for data integrity
 } now_msg;
 
 #define MSG_COUNT 64
@@ -186,7 +186,7 @@ void setup()
     msg[i].startnumber = 0ULL;
     msg[i].control = 0;
     msg[i].othernode = 255;
-    msg[i].mynode = 0; // 0 is Always the server
+    msg[i].senderNode = 0; // 0 is Always the server
   }
 
   // ESP-NOW requires WiFi to be initialized in station mode first
@@ -271,14 +271,16 @@ void loop()
   {
     previousMillis = currentMillis;
     // Place any code here that you want to run every 10 seconds
-
+    msg[0].senderNode = 0; // 0 is server
     msg[0].sequence++;
     msg[0].control = 1; // ping
     msg[0].length = 10000000;
     msg[0].startnumber = 0; // example value
     msg[0].result = 0;      // example value
     msg[0].status = 0;      // example value
-    msg[0].checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(now_msg));
+    msg[0].othernode = 255; // example value
+    msg[0].checksum = 0;    // initialize checksum before calculation
+    msg[0].checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(msg[0]));
 
     // peerInfo.channel = CHANNEL;
     esp_err_t result = esp_now_send(peerInfo.peer_addr, (const uint8_t *)&msg[0], sizeof(now_msg));
@@ -319,10 +321,10 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   memcpy(&msg[0], incomingData, sizeof(now_msg));
 
   Serial.println("\n--- New Packet Received ---");
-
-  Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].othermax[0],
-                msg[0].othermax[1], msg[0].othermax[2], msg[0].othermax[3],
-                msg[0].othermax[4], msg[0].othermax[5]);
+  Serial.printf("Semders Node: %i\n", msg[0].senderNode);
+  Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].othermac[0],
+                msg[0].othermac[1], msg[0].othermac[2], msg[0].othermac[3],
+                msg[0].othermac[4], msg[0].othermac[5]);
   Serial.printf("Other node: %i\n", msg[0].othernode);
   Serial.printf("Control: %i\n", msg[0].control);
   Serial.printf("Sequence: %i\n", msg[0].sequence);
