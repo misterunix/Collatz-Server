@@ -3,6 +3,7 @@
 #include <TFT_eSPI.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 
 // 28:05:a5:33:23:fc
 #define MSG_FREE 0
@@ -10,6 +11,8 @@
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
+uint16_t calculate_16_bit_checksum(const uint8_t *data, size_t length);
+void set_hardware_wifi_channel(uint8_t channel);
 
 // Replace with your receiver's MAC address
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -67,6 +70,11 @@ bool backlightOn = false;
 
 long blPreviousMillis = 0;
 long blInterval = 1000;
+
+unsigned long currentMillis = 0;
+unsigned long previousMillis = 0;
+
+esp_now_peer_info_t peerInfo;
 
 // Print Touchscreen info about X, Y and Pressure (Z) on the Serial Monitor
 void printTouchToSerial(int touchX, int touchY, int touchZ)
@@ -127,7 +135,8 @@ void printErrorToDisplay(String errorMessage)
 
 void setup()
 {
-
+  currentMillis = millis();
+  previousMillis = currentMillis;
   Serial.begin(115200);
 
   pinMode(RED_LED, OUTPUT);
@@ -182,7 +191,7 @@ void setup()
 
   // ESP-NOW requires WiFi to be initialized in station mode first
   WiFi.mode(WIFI_STA);
-
+  set_hardware_wifi_channel(CHANNEL);
   // Initialize ESP-NOW
   if (esp_now_init() != ESP_OK)
   {
@@ -195,7 +204,7 @@ void setup()
   esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
 
   // Register peer
-  esp_now_peer_info_t peerInfo = {};
+
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
   peerInfo.channel = CHANNEL;
   peerInfo.encrypt = false;
@@ -256,6 +265,32 @@ void loop()
 
     delay(100);
   }
+
+  currentMillis = millis();
+  if (currentMillis - previousMillis >= 10000)
+  {
+    previousMillis = currentMillis;
+    // Place any code here that you want to run every 10 seconds
+
+    msg[0].sequence++;
+    msg[0].control = 1; // ping
+    msg[0].length = 10000000;
+    msg[0].startnumber = 0; // example value
+    msg[0].result = 0;      // example value
+    msg[0].status = 0;      // example value
+    msg[0].checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(now_msg));
+
+    peerInfo.channel = CHANNEL;
+    esp_err_t result = esp_now_send(peerInfo.peer_addr, (const uint8_t *)&msg[0], sizeof(now_msg));
+    if (result == ESP_OK)
+    {
+      Serial.println("Sent with success");
+    }
+    else
+    {
+      Serial.println("Error sending the data");
+    }
+  }
 }
 
 // Calculates a 16-bit checksum by summing all bytes in the buffer.
@@ -294,4 +329,11 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   Serial.println(msg[0].result);
   Serial.printf("Status: %i\n", msg[0].status);
   Serial.printf("Checksum: %04X\n", msg[0].checksum);
+}
+
+void set_hardware_wifi_channel(uint8_t channel)
+{
+  esp_wifi_set_promiscuous(true);
+  esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_promiscuous(false);
 }
