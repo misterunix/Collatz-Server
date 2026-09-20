@@ -267,7 +267,7 @@ void loop()
   }
 
   currentMillis = millis();
-  if (currentMillis - previousMillis >= 10000)
+  if (currentMillis - previousMillis >= 5000)
   {
     previousMillis = currentMillis;
     // Place any code here that you want to run every 10 seconds
@@ -280,7 +280,7 @@ void loop()
     msg[0].status = 0;      // example value
     msg[0].checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(now_msg));
 
-    peerInfo.channel = CHANNEL;
+    // peerInfo.channel = CHANNEL;
     esp_err_t result = esp_now_send(peerInfo.peer_addr, (const uint8_t *)&msg[0], sizeof(now_msg));
     if (result == ESP_OK)
     {
@@ -307,6 +307,8 @@ uint16_t calculate_16_bit_checksum(const uint8_t *data, size_t length)
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
+  Serial.printf("other mac: %02X:%02X:%02X:%02X:%02X:%02X\n", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+
   Serial.print("\r\nLast Packet Send Status:\t");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
