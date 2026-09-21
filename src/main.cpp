@@ -17,6 +17,7 @@ void set_hardware_wifi_channel(uint8_t channel);
 void pong();
 void ping();
 void printErrorToDisplay(String errorMessage);
+void turnBacklightOnOff();
 
 // Replace with your receiver's MAC address
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -44,10 +45,6 @@ now_msg msg[MSG_COUNT];
 
 // Touchscreen coordinates: (x, y) and pressure (z)
 int touch_x, touch_y, touch_z;
-bool backlightOn = false;
-
-long blPreviousMillis = 0;
-long blInterval = 1000;
 
 unsigned long currentMillis = 0;
 unsigned long previousMillis = 0;
@@ -127,7 +124,7 @@ void setup()
 
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
-  backlightOn = true;
+  // backlightOn = true;
 
   pinMode(LDR, INPUT);
 
@@ -195,34 +192,6 @@ void setup()
   Serial.println("ESP-NOW Initialized!");
   esp_read_mac(baseMac, ESP_MAC_WIFI_STA);
   Serial.printf("Base MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", baseMac[0], baseMac[1], baseMac[2], baseMac[3], baseMac[4], baseMac[5]);
-}
-
-void turnBacklightOnOff()
-{
-
-  unsigned long blCurrentMillis = millis();
-  if (blCurrentMillis - blPreviousMillis >= blInterval)
-  {
-    blPreviousMillis = blCurrentMillis;
-    // Place any code here that you want to run at the specified interval
-
-    /*  Read the LDR value and map it to a backlight value for the TFT display
-        The LDR value is inverted, so that when the LDR is in darkness, the backlight is at maximum brightness (255)
-        When the LDR is in bright light, the backlight is at minimum brightness (20)
-    */
-    uint16_t lightlevel = analogRead(LDR);
-    lightlevel = constrain(lightlevel, 0, 600);
-    if (lightlevel > 90)
-    {
-      digitalWrite(TFT_BL, TFT_BACKLIGHT_OFF);
-      backlightOn = false;
-    }
-    else
-    {
-      digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
-      backlightOn = true;
-    }
-  }
 }
 
 void loop()
@@ -350,9 +319,9 @@ void ping()
   memcpy(msg[0].otherMAC, baseMac, 6);
 
   msg[0].senderNode = 0; // 0 is server
-  msg[0].sequence++;
+  msg[0].sequence = 0;
   msg[0].control = 1; // ping
-  msg[0].length = 10000000;
+  msg[0].length = 0;
   msg[0].startnumber = 0;  // example value
   msg[0].result = 0;       // example value
   msg[0].status = 0;       // example value
