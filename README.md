@@ -11,8 +11,8 @@ The server in this case is a ESP32 on a CYD
 control
 
 - 1 = ping  
-- 2 = ack
-- 4 = nack
+- 2 = pong
+- 4 = ack
 - 8 =  
 - 16 =  
 - 32 =  

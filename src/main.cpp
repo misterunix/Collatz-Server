@@ -49,7 +49,7 @@ typedef struct now_msg
 {
   uint8_t othermac[6];            // the mac of a responding device
   uint8_t senderNode;             // the node ID of the sender
-  uint8_t othernode;              // the node ID of the responding device
+  uint8_t recvNodeID;             // the node ID of the responding device
   uint8_t control;                // control flags or commands
   uint8_t sequence;               // sequence number of the message
   unsigned long long startnumber; // starting number for the computation
@@ -63,6 +63,7 @@ typedef struct now_msg
 now_msg msg[MSG_COUNT];
 
 void printErrorToDisplay(String errorMessage);
+void ping();
 
 // Touchscreen coordinates: (x, y) and pressure (z)
 int touch_x, touch_y, touch_z;
@@ -185,7 +186,7 @@ void setup()
     msg[i].result = 0ULL;
     msg[i].startnumber = 0ULL;
     msg[i].control = 0;
-    msg[i].othernode = 255;
+    msg[i].recvNodeID = 255;
     msg[i].senderNode = 0; // 0 is Always the server
   }
 
@@ -270,16 +271,18 @@ void loop()
   if (currentMillis - previousMillis >= 5000)
   {
     previousMillis = currentMillis;
+    ping();
+    /*
     // Place any code here that you want to run every 10 seconds
     msg[0].senderNode = 0; // 0 is server
     msg[0].sequence++;
     msg[0].control = 1; // ping
     msg[0].length = 10000000;
-    msg[0].startnumber = 0; // example value
-    msg[0].result = 0;      // example value
-    msg[0].status = 0;      // example value
-    msg[0].othernode = 255; // example value
-    msg[0].checksum = 0;    // initialize checksum before calculation
+    msg[0].startnumber = 0;  // example value
+    msg[0].result = 0;       // example value
+    msg[0].status = 0;       // example value
+    msg[0].recvNodeID = 255; // example value
+    msg[0].checksum = 0;     // initialize checksum before calculation
     msg[0].checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(msg[0]));
 
     // peerInfo.channel = CHANNEL;
@@ -292,6 +295,7 @@ void loop()
     {
       Serial.println("Error sending the data");
     }
+    */
   }
 }
 
@@ -321,11 +325,11 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   memcpy(&msg[0], incomingData, sizeof(now_msg));
 
   Serial.println("\n--- New Packet Received ---");
-  Serial.printf("Semders Node: %i\n", msg[0].senderNode);
+  Serial.printf("Senders Node: %i\n", msg[0].senderNode);
   Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].othermac[0],
                 msg[0].othermac[1], msg[0].othermac[2], msg[0].othermac[3],
                 msg[0].othermac[4], msg[0].othermac[5]);
-  Serial.printf("Other node: %i\n", msg[0].othernode);
+  Serial.printf("Other node: %i\n", msg[0].recvNodeID);
   Serial.printf("Control: %i\n", msg[0].control);
   Serial.printf("Sequence: %i\n", msg[0].sequence);
   Serial.println(msg[0].startnumber);
@@ -340,4 +344,38 @@ void set_hardware_wifi_channel(uint8_t channel)
   esp_wifi_set_promiscuous(true);
   esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
   esp_wifi_set_promiscuous(false);
+}
+
+void ping()
+{
+  uint8_t baseMac[6];
+  esp_read_mac(baseMac, ESP_MAC_WIFI_STA);
+  Serial.print("Base MAC: ");
+  for (int i = 0; i < 6; i++)
+  {
+    Serial.printf("%02X", baseMac[i]);
+    if (i < 5)
+      Serial.print(":");
+  }
+  Serial.println();
+  msg[0].senderNode = 0; // 0 is server
+  msg[0].sequence++;
+  msg[0].control = 1; // ping
+  msg[0].length = 10000000;
+  msg[0].startnumber = 0;  // example value
+  msg[0].result = 0;       // example value
+  msg[0].status = 0;       // example value
+  msg[0].recvNodeID = 255; // example value
+  msg[0].checksum = 0;     // initialize checksum before calculation
+  msg[0].checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(msg[0]));
+
+  esp_err_t result = esp_now_send(peerInfo.peer_addr, (const uint8_t *)&msg[0], sizeof(now_msg));
+  if (result == ESP_OK)
+  {
+    Serial.println("Sent with success");
+  }
+  else
+  {
+    Serial.println("Error sending the data");
+  }
 }
