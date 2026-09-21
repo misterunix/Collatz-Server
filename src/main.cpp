@@ -13,9 +13,12 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
 uint16_t calculate_16_bit_checksum(const uint8_t *data, size_t length);
 void set_hardware_wifi_channel(uint8_t channel);
+void pong();
+void ping();
 
 // Replace with your receiver's MAC address
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+uint8_t baseMac[6]; // mac of this board
 
 // Install the "XPT2046_Touchscreen" library by Paul Stoffregen to use the Touchscreen - https://github.com/PaulStoffregen/XPT2046_Touchscreen
 // Note: this library doesn't require further configuration
@@ -47,7 +50,7 @@ XPT2046_Touchscreen touchscreen(XPT2046_CS, XPT2046_IRQ);
 
 typedef struct now_msg
 {
-  uint8_t othermac[6];            // the mac of a responding device
+  uint8_t otherMAC[6];            // the mac of a responding device
   uint8_t senderNode;             // the node ID of the sender
   uint8_t recvNodeID;             // the node ID of the responding device
   uint8_t control;                // control flags or commands
@@ -216,6 +219,8 @@ void setup()
   }
 
   Serial.println("ESP-NOW Initialized!");
+  esp_read_mac(baseMac, ESP_MAC_WIFI_STA);
+  Serial.printf("Base MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", baseMac[0], baseMac[1], baseMac[2], baseMac[3], baseMac[4], baseMac[5]);
 }
 
 void turnBacklightOnOff()
@@ -324,11 +329,31 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   // Copy incoming memory buffer directly into our structure variables
   memcpy(&msg[0], incomingData, sizeof(now_msg));
 
+  uint16_t tmpcrc = msg[0].checksum;
+  uint16_t calcCRC = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(now_msg));
+  msg[0].checksum = tmpcrc;
+  if (tmpcrc == calcCRC)
+  {
+    Serial.println("Checksum valid");
+  }
+  else
+  {
+    Serial.println("Checksum invalid");
+  }
+
+  switch (msg[0].control)
+  {
+  case 2: // ping
+    pong();
+    break;
+    // Add other cases as needed
+  }
+
   Serial.println("\n--- New Packet Received ---");
   Serial.printf("Senders Node: %i\n", msg[0].senderNode);
-  Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].othermac[0],
-                msg[0].othermac[1], msg[0].othermac[2], msg[0].othermac[3],
-                msg[0].othermac[4], msg[0].othermac[5]);
+  Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].otherMAC[0],
+                msg[0].otherMAC[1], msg[0].otherMAC[2], msg[0].otherMAC[3],
+                msg[0].otherMAC[4], msg[0].otherMAC[5]);
   Serial.printf("Other node: %i\n", msg[0].recvNodeID);
   Serial.printf("Control: %i\n", msg[0].control);
   Serial.printf("Sequence: %i\n", msg[0].sequence);
@@ -348,16 +373,8 @@ void set_hardware_wifi_channel(uint8_t channel)
 
 void ping()
 {
-  uint8_t baseMac[6];
-  esp_read_mac(baseMac, ESP_MAC_WIFI_STA);
-  Serial.print("Base MAC: ");
-  for (int i = 0; i < 6; i++)
-  {
-    Serial.printf("%02X", baseMac[i]);
-    if (i < 5)
-      Serial.print(":");
-  }
-  Serial.println();
+  memcpy(msg[0].otherMAC, baseMac, 6);
+
   msg[0].senderNode = 0; // 0 is server
   msg[0].sequence++;
   msg[0].control = 1; // ping
@@ -378,4 +395,12 @@ void ping()
   {
     Serial.println("Error sending the data");
   }
+}
+
+void pong()
+{
+  Serial.print("Pong received from node: ");
+  Serial.print(msg[0].senderNode);
+  Serial.print(" MAC: ");
+  Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].otherMAC[0], msg[0].otherMAC[1], msg[0].otherMAC[2], msg[0].otherMAC[3], msg[0].otherMAC[4], msg[0].otherMAC[5]);
 }
