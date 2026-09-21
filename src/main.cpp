@@ -4,10 +4,11 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <XPT2046_Touchscreen.h>
+
+#include "constants.hh"
 
 // 28:05:a5:33:23:fc
-#define MSG_FREE 0
-#define MSG_BUSY 1
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
@@ -15,38 +16,15 @@ uint16_t calculate_16_bit_checksum(const uint8_t *data, size_t length);
 void set_hardware_wifi_channel(uint8_t channel);
 void pong();
 void ping();
+void printErrorToDisplay(String errorMessage);
 
 // Replace with your receiver's MAC address
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t baseMac[6]; // mac of this board
 
-// Install the "XPT2046_Touchscreen" library by Paul Stoffregen to use the Touchscreen - https://github.com/PaulStoffregen/XPT2046_Touchscreen
-// Note: this library doesn't require further configuration
-#include <XPT2046_Touchscreen.h>
-
 TFT_eSPI tft = TFT_eSPI();
-
-// Touchscreen pins
-#define XPT2046_IRQ 36  // T_IRQ
-#define XPT2046_MOSI 32 // T_DIN
-#define XPT2046_MISO 39 // T_OUT
-#define XPT2046_CLK 25  // T_CLK
-#define XPT2046_CS 33   // T_CS
-
 SPIClass touchscreenSPI = SPIClass(VSPI);
 XPT2046_Touchscreen touchscreen(XPT2046_CS, XPT2046_IRQ);
-
-#define RED_LED 4
-#define GREEN_LED 17
-#define BLUE_LED 16
-
-#define LDR 34
-
-#define SCREEN_WIDTH 320
-#define SCREEN_HEIGHT 240
-#define FONT_SIZE 1
-
-#define CHANNEL 3
 
 typedef struct now_msg
 {
@@ -62,11 +40,7 @@ typedef struct now_msg
   uint16_t checksum;              // 16-bit checksum for data integrity
 } now_msg;
 
-#define MSG_COUNT 64
 now_msg msg[MSG_COUNT];
-
-void printErrorToDisplay(String errorMessage);
-void ping();
 
 // Touchscreen coordinates: (x, y) and pressure (z)
 int touch_x, touch_y, touch_z;
