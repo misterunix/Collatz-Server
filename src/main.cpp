@@ -318,14 +318,14 @@ void ping()
 {
   memcpy(msg[0].otherMAC, baseMac, 6);
 
-  msg[0].senderNode = 0; // 0 is server
-  msg[0].sequence = 0;
-  msg[0].control = 1; // ping
-  msg[0].length = 0;
-  msg[0].startnumber = 0;  // example value
-  msg[0].result = 0;       // example value
-  msg[0].status = 0;       // example value
-  msg[0].recvNodeID = 255; // example value
+  msg[0].senderNode = 0;   // 0 is server
+  msg[0].sequence = 0;     // sequence number is 0 on pings
+  msg[0].control = 1;      // 1=ping, 2=pong, 4=pong but need node #
+  msg[0].length = 0;       // collatz current length to run, 0 on pings
+  msg[0].startnumber = 0;  // collatz starting number, 0 on pings
+  msg[0].result = 0;       // collatz result, 0 on pings
+  msg[0].status = 0;       // status, 0 on pings
+  msg[0].recvNodeID = 255; // 255 = broadcast node
   msg[0].checksum = 0;     // initialize checksum before calculation
   msg[0].checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(msg[0]));
 
